@@ -1,11 +1,12 @@
 # writes .lp file for optimization
 # idx 1 corresponds to flight 1 in csv, idx 0 corresponds to 'start', idx n to 'end'
+# todo; add multiple runways, add maximum delay
 
 import pandas as pd
 
-flights_input = pd.read_csv('flights_input.csv')
-print(flights_input)
 
+runway_list = ['l', 'r']
+flights_input = pd.read_csv('flights_input.csv')
 
 """ OBJECTIVE FUNCTION """
 # variables
@@ -70,32 +71,33 @@ separation_medium_medium = -1700    # 100
 for i in range(len(flights_input.index)):
     for j in range(len(flights_input.index)):
         if i is not j:
-            file.write('  separation_' + str(i+1) + '_' + str(j+1) + ': time_' + str(j+1) + ' - time_' + str(i+1) +
-                       ' - 1800 order_' + str(i+1) + '_' + str(j+1) + ' >= ')
-            if flights_input['Weight class'] .iloc[i] == 'H':
-                if flights_input['Weight class'] .iloc[j] == 'H':
-                    # heavy - heavy
-                    file.write(str(separation_heavy_heavy))
-                    file.write('\n')
-                elif flights_input['Weight class'] .iloc[j] == 'M':
-                    # heavy - medium
-                    file.write(str(separation_heavy_medium))
-                    file.write('\n')
+            for k in runway_list:
+                file.write('  separation_' + str(i+1) + '_' + str(j+1) + '_' + k + ': time_' + str(j+1) + ' - time_' + str(i+1) +
+                           ' - 1800 order_' + str(i+1) + '_' + str(j+1) + '_' + k + ' >= ')
+                if flights_input['Weight class'] .iloc[i] == 'H':
+                    if flights_input['Weight class'] .iloc[j] == 'H':
+                        # heavy - heavy
+                        file.write(str(separation_heavy_heavy))
+                        file.write('\n')
+                    elif flights_input['Weight class'] .iloc[j] == 'M':
+                        # heavy - medium
+                        file.write(str(separation_heavy_medium))
+                        file.write('\n')
+                    else:
+                        print('Error - aircraft class not found')
+                elif flights_input['Weight class'] .iloc[i] == 'M':
+                    if flights_input['Weight class'].iloc[j] == 'H':
+                        # medium - heavy
+                        file.write(str(separation_medium_heavy))
+                        file.write('\n')
+                    elif flights_input['Weight class'] .iloc[j] == 'M':
+                        # medium - medium
+                        file.write(str(separation_medium_medium))
+                        file.write('\n')
+                    else:
+                        print('Error - aircraft class not found')
                 else:
                     print('Error - aircraft class not found')
-            elif flights_input['Weight class'] .iloc[i] == 'M':
-                if flights_input['Weight class'].iloc[j] == 'H':
-                    # medium - heavy
-                    file.write(str(separation_medium_heavy))
-                    file.write('\n')
-                elif flights_input['Weight class'] .iloc[j] == 'M':
-                    # medium - medium
-                    file.write(str(separation_medium_medium))
-                    file.write('\n')
-                else:
-                    print('Error - aircraft class not found')
-            else:
-                print('Error - aircraft class not found')
 
 
 """ ORDER """
@@ -103,20 +105,29 @@ for i in range(len(flights_input.index)):
 for i in range(len(flights_input.index)):
     for j in range(len(flights_input.index)):
         if i < j:
-            file.write('  o_' + str(i+1) + '_' + str(j+1) + ': order_' + str(j+1) + '_' + str(i+1) + ' + order_' + str(i+1) + '_' + str(j+1) + ' <= 1\n')
-
+            file.write('  o_' + str(i + 1) + '_' + str(j + 1) + ':')
+            flag = True
+            print(i,j)
+            for k in runway_list:
+                if flag:
+                    file.write(' order_' + str(j+1) + '_' + str(i+1) + '_' + k + ' + order_' + str(i+1) + '_' + str(j+1) + '_' + k)
+                if not flag:
+                    file.write(' + order_' + str(j + 1) + '_' + str(i + 1) + '_' + k + ' + order_' + str(i + 1) + '_' + str(j + 1) + '_' + k)
+                flag = False
+            file.write(' <= 1\n')
 # ascertain that from order i_n for n = 1, 2, 3 ... but not i; maximum one can be true
 # this ensures that only one flight can be directly AFTER flight i
 for i in range(len(flights_input.index)+1):
     file.write('  after' + str(i) + ':')
     flag = True
-    for j in range(len(flights_input.index)+2):
+    for j in range(1, len(flights_input.index)+2):
         if i is not j:
-            if flag:
-                file.write(' order_' + str(i) + '_' + str(j))
-            if not flag:
-                file.write(' + order_' + str(i) + '_' + str(j))
-            flag = False
+            for k in runway_list:
+                if flag:
+                    file.write(' order_' + str(i) + '_' + str(j) + '_' + k)
+                if not flag:
+                    file.write(' + order_' + str(i) + '_' + str(j) + '_' + k)
+                flag = False
     file.write(' = 1\n')
 
 # ascertain that from order n_i for n = 1, 2, 3 ... but not i; maximum one can be true
@@ -126,11 +137,12 @@ for i in range(1, len(flights_input.index)+2):
     flag = True
     for j in range(len(flights_input.index)+1):
         if i is not j:
-            if flag:
-                file.write(' order_' + str(j) + '_' + str(i))
-            if not flag:
-                file.write(' + order_' + str(j) + '_' + str(i))
-            flag = False
+            for k in runway_list:
+                if flag:
+                    file.write(' order_' + str(j) + '_' + str(i) + '_' + k)
+                if not flag:
+                    file.write(' + order_' + str(j) + '_' + str(i) + '_' + k)
+                flag = False
     file.write(' = 1\n')
 
 
@@ -145,7 +157,8 @@ noise_right_heavy = 75      # dB
 """ DEFINE VARIABLES """
 file.write('\nBinary\n')
 for i in range(len(flights_input.index)+2):
-    for j in range(len(flights_input.index)+2):
+    for j in range(len(flights_input.index)+1):
         if i is not j:
-            file.write('order_' + str(j) + '_' + str(i) + ' ')
+            for k in runway_list:
+                file.write('order_' + str(j) + '_' + str(i) + '_' + k + ' ')
 file.write('\nEnd')

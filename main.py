@@ -6,6 +6,7 @@
 # todo; model sensitivity analysis
 # todo; optional; add departure-departure, arrival-departure, departure-arrival dependencies (easier than it sounds)
 # todo; optional; add more runways
+# todo; add lead idx for last idx, because it is not necessarily last
 
 import pandas as pd
 import numpy as np
@@ -49,8 +50,13 @@ noise_left_list = [90, 85, 80, 75]              # dBA
 noise_right_list = [100, 95, 90, 85]            # dBA
 
 # time vector
-time_resolution = 20                            # s
-max_time_slot_shift = 5000                      # -
+time_resolution = 10                            # s
+number_of_timeslots = 9000                      # -
+max_timeslot_shift = 50
+time_vector = range(0, time_resolution * number_of_timeslots, time_resolution)
+
+dependency_forward = 30
+dependency_backward = -10
 
 # input data
 flights_input = pd.read_csv('Flightschedule.csv')
@@ -77,6 +83,26 @@ class bcolors:
 
 def find_idx(input_string):
     return aircraft_list.index(input_string)
+
+
+def get_range(lead_index):
+    low_index = lead_index + dependency_backward
+    high_index = lead_index + dependency_forward
+    if low_index < 0:
+        low_index = 0
+    if high_index > len(flights_input.index):
+        high_index = len(flights_input.index)
+    return low_index, high_index
+
+
+def get_time_idxs(lead_time_idx):
+    bottom = lead_time_idx - max_timeslot_shift
+    if bottom < 0:
+        bottom = 0
+    top = lead_time_idx + max_timeslot_shift
+    if top > len(time_vector):
+        top = len(time_vector)
+    return bottom, top
 
 
 """ OBJECTIVE FUNCTION """
@@ -109,7 +135,7 @@ file.write('= 0\n')
 for lead_idx in range(len(flights_input.index)):
     time_original = flights_input['Time'].iloc[lead_idx]
     file.write('  tfb' + str(lead_idx) + ': ')
-    for j in range(max_time_slot_shift):
+    for j in range(0, dependency_forward):      # todo; range from 0 so that aircraft cannot arrive earlier than they do
         for runway in runway_list:
             time_slot = time_original + j * time_resolution
             weight_class = flights_input['Weight class'].iloc[lead_idx]
@@ -125,7 +151,7 @@ for lead_idx in range(len(flights_input.index)):
 for lead_idx in range(len(flights_input.index)):
     time_original = flights_input['Time'].iloc[lead_idx]
     file.write('  delaye_' + str(lead_idx) + ': ')
-    for j in range(max_time_slot_shift):
+    for j in range(0, dependency_forward):
         for runway in runway_list:
             time_slot = time_original + j * time_resolution
             file.write(' + ' + str(time_slot) + ' x_' + str(lead_idx + 1) + '_' + runway + '_' + str(time_slot))
@@ -143,7 +169,7 @@ for runway in runway_list:
     for lead_idx in range(len(flights_input.index)):
         time_original = flights_input['Time'].iloc[lead_idx]
         file.write('  noise' + str(lead_idx) + runway + ': ')
-        for j in range(max_time_slot_shift):
+        for j in range(0, dependency_forward):
             time_slot = time_original + j * time_resolution
             weight_class = flights_input['Weight class'].iloc[lead_idx]
             index = find_idx(weight_class)
@@ -163,7 +189,7 @@ for i in range(len(flights_input.index)):
     time_original = flights_input['Time'] .iloc[i]
     flag = True
     for runway in runway_list:
-        for time_slot in range(time_original, time_original + max_time_slot_shift * time_resolution, time_resolution):
+        for time_slot in range(time_original, time_original + dependency_forward * time_resolution, time_resolution):
             if flag:
                 file.write('x_' + str(i+1) + '_' + runway + '_' + str(time_slot))
             else:
@@ -180,47 +206,56 @@ dependency_tensor = []
 for lead_idx in range(len(flights_input.index)):
     lead_class = flights_input['Weight class'] .iloc[lead_idx]
     lead_time_original = flights_input['Time'].iloc[lead_idx]
+    lead_time_idx = time_vector.index(lead_time_original)
     lead_matrix = []
-    for follow_idx in range(len(flights_input.index)):      # todo; to optimize performance, section 4.4; i-10,i+30
-        dependency_matrix = np.zeros((max_time_slot_shift, max_time_slot_shift))
-        if follow_idx is not lead_idx:
-            follow_class = flights_input['Weight class'].iloc[follow_idx]
-            follow_time_original = flights_input['Time'].iloc[follow_idx]
-            for i in range(max_time_slot_shift):
-                for j in range(max_time_slot_shift):
-                    dependency = False
-                    lead_time_slot = flights_input['Time'].iloc[lead_idx] + i * time_resolution
-                    follow_time_slot = flights_input['Time'].iloc[follow_idx] + j * time_resolution
-                    if follow_time_slot >= lead_time_slot: # todo; check if follower HAS to be after leader
-                        separation = follow_time_slot - lead_time_slot
-                        index_lead = find_idx(lead_class)
-                        index_follow = find_idx(follow_class)
-                        if separation < separation_matrix[index_lead][index_follow]:
-                            dependency = True
-                    dependency_matrix[i][j] = dependency
+    bottom_range, top_range = get_range(lead_idx)
+    for follow_idx in range(len(flights_input.index)):      # todo; change from lead_idx to bottom_range to allow more switching flexibility
+        dependency_matrix = np.zeros((number_of_timeslots, number_of_timeslots))
+        if follow_idx in range(bottom_range, top_range):
+            if follow_idx is not lead_idx:
+                follow_class = flights_input['Weight class'].iloc[follow_idx]
+                follow_time_original = flights_input['Time'].iloc[follow_idx]
+                bottom, top = get_time_idxs(lead_time_idx)
+                for i in range(bottom, top):
+                    for j in range(bottom, top):
+                        if i < len(time_vector):
+                            if j < len(time_vector):
+                                dependency = False
+                                lead_time_slot = flights_input['Time'].iloc[lead_idx] + i * time_resolution
+                                follow_time_slot = flights_input['Time'].iloc[follow_idx] + j * time_resolution
+                                # if follow_time_slot >= lead_time_slot: # todo; check if follower HAS to be after leader
+                                separation = abs(follow_time_slot - lead_time_slot)
+                                index_lead = find_idx(lead_class)
+                                index_follow = find_idx(follow_class)
+                                if separation < separation_matrix[index_lead][index_follow]:
+                                    dependency = True
+                                dependency_matrix[i][j] = dependency
         lead_matrix.append(dependency_matrix)
     dependency_tensor.append(lead_matrix)
 
     print(' -> LEAD IDX ' + str(lead_idx) + ' DEPENDENCY DONE')
-
 print('""" DEPENDENCY MATRIX DONE """')
 
 # write constraints
 for runway in runway_list:
     for lead_idx in range(len(flights_input.index)):
         time_original = flights_input['Time'].iloc[lead_idx]
-        for j in range(max_time_slot_shift):
-            time_slot = time_original + j * time_resolution
-            file.write('  occupation_' + str(lead_idx + 1) + '_' + str(time_slot) + '_' + runway + ': x_' +
-                       str(lead_idx + 1) + '_' + runway + '_' + str(time_slot))
-            for follow_idx in range(len(flights_input.index)):
-                if follow_idx is not lead_idx:
-                    for k in range(max_time_slot_shift):
-                        if dependency_tensor[lead_idx][follow_idx][j][k]:
-                            follow_time_slot = flights_input['Time'].iloc[follow_idx] + k * time_resolution
-                            # if follow_time_slot >= time_slot:
-                            file.write(' + x_' + str(follow_idx+1) + '_' + runway + '_' + str(follow_time_slot))
-            file.write(' <= 1\n')
+        lead_time_idx = time_vector.index(time_original)
+        for j in range(lead_time_idx, lead_time_idx + max_timeslot_shift):
+            if j < len(time_vector):
+                time_slot = j * time_resolution
+                file.write('  occupation_' + str(lead_idx + 1) + '_' + str(time_slot) + '_' + runway + ': x_' +
+                           str(lead_idx + 1) + '_' + runway + '_' + str(time_slot))
+                bottom_range, top_range = get_range(lead_idx)
+                for follow_idx in range(bottom_range, top_range):
+                    if follow_idx is not lead_idx:
+                        for k in range(lead_time_idx, lead_time_idx + max_timeslot_shift):
+                            if k < len(time_vector):
+                                if dependency_tensor[lead_idx][follow_idx][j][k]:
+                                    follow_time_slot = flights_input['Time'].iloc[follow_idx] + k * time_resolution
+                                    # if follow_time_slot >= time_slot:
+                                    file.write(' + x_' + str(follow_idx+1) + '_' + runway + '_' + str(follow_time_slot))
+                file.write(' <= 1\n')
 
 print('""" RUNWAY OCCUPATION CONSTRAINTS DONE """')
 
@@ -230,15 +265,17 @@ file.write('\nBinary\n')
 for runway in runway_list:
     for lead_idx in range(len(flights_input.index)):
         time_original = flights_input['Time'].iloc[lead_idx]
-        for j in range(max_time_slot_shift):
-            time_slot = time_original + j * time_resolution
-            file.write('x_' + str(lead_idx + 1) + '_' + runway + '_' + str(time_slot) + ' ')
+        lead_time_idx = time_vector.index(time_original)
+        for j in range(lead_time_idx, lead_time_idx + max_timeslot_shift):
+            if j < len(time_vector):
+                time_slot = j * time_resolution
+                file.write('x_' + str(lead_idx + 1) + '_' + runway + '_' + str(time_slot) + ' ')
 file.write('\nEnd')
 
 print('""" READY FOR OPTIMIZATION """')
 
-if flights_input['Time'] .iloc[-1] > time_resolution * max_time_slot_shift - 300:
+if flights_input['Time'] .iloc[-1] > time_resolution * number_of_timeslots - 300:
     print(f"{bcolors.FAIL}WARNING: POTENTIALLY INSUFFICIENTLY LARGE TIME VECTOR {bcolors.ENDC}")
-    print('--> Time vector is length ', time_resolution * max_time_slot_shift)
+    print('--> Time vector is length ', time_resolution * number_of_timeslots)
     print('--> While latest arrival is at ', flights_input['Time'] .iloc[-1])
     print('--> It is highly recommended to extend your time vector to accommodate for delays')

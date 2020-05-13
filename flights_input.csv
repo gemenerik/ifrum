@@ -1,4 +1,5 @@
 Flight,Time,Weight class
-1,0,L
-2,0,H
-3,0,M
+1,0,M
+2,40,H
+3,60,L
+4,100,N

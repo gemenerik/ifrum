@@ -50,8 +50,8 @@ noise_left_list = [90, 85, 80, 75]              # dBA
 noise_right_list = [100, 95, 90, 85]            # dBA
 
 # time vector
-time_resolution = 10                            # s
-number_of_timeslots = 9000                      # -
+time_resolution = 20                            # s
+number_of_timeslots = 4500                       # -
 max_timeslot_shift = 50
 time_vector = range(0, time_resolution * number_of_timeslots, time_resolution)
 
@@ -209,8 +209,9 @@ for lead_idx in range(len(flights_input.index)):
     lead_time_idx = time_vector.index(lead_time_original)
     lead_matrix = []
     bottom_range, top_range = get_range(lead_idx)
+    zero_matrix = np.zeros((number_of_timeslots, number_of_timeslots), dtype=bool)
     for follow_idx in range(len(flights_input.index)):      # todo; change from lead_idx to bottom_range to allow more switching flexibility
-        dependency_matrix = np.zeros((number_of_timeslots, number_of_timeslots))
+        dependency_matrix = zero_matrix
         if follow_idx in range(bottom_range, top_range):
             if follow_idx is not lead_idx:
                 follow_class = flights_input['Weight class'].iloc[follow_idx]

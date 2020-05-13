@@ -15,5 +15,5 @@ elif status == OptimizationStatus.NO_SOLUTION_FOUND:
 if status == OptimizationStatus.OPTIMAL or status == OptimizationStatus.FEASIBLE:
     print('solution:')
     for v in m.vars:
-       if abs(v.x) > 1e-6: # only printing non-zeros
+       if abs(v.x) > 1e-3: # only printing non-zeros
           print('{} : {}'.format(v.name, v.x))

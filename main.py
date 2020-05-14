@@ -9,8 +9,6 @@
 
 import pandas as pd
 import scipy.sparse as sps
-import numpy as np
-import sys
 
 
 """ VARIABLES """

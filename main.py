@@ -51,7 +51,7 @@ noise_right_list = [100, 95, 90, 85]            # dBA
 # time vector
 time_resolution = 20                            # s
 number_of_timeslots = 4500                      # -
-max_timeslot_shift = 25                         # -
+max_timeslot_shift = 30                         # -
 time_vector = range(0, time_resolution * number_of_timeslots, time_resolution)
 
 dependency_forward = 10
@@ -60,6 +60,9 @@ dependency_backward = -5
 # input data
 flights_input = pd.read_csv('Flightschedule.csv')
 file = open('ifrum.lp', 'w')
+
+fuel_weight = 1
+noise_weight = 1
 
 
 """ TOOLS """
@@ -106,7 +109,7 @@ def get_time_idxs(lead_time_idx):
 
 """ OBJECTIVE FUNCTION """
 # variables
-optimization_function = 'total_fuel_burned + total_noise'
+optimization_function = str(fuel_weight) + ' total_fuel_burned + ' + str(noise_weight) + ' total_noise'
 
 # write
 file.write('Minimize\n')
@@ -203,7 +206,10 @@ print('""" FLIGHT ASSIGNMENT DONE """')
 # generate dependency matrices
 dependency_tensor = []
 # dependency_tensor_entry = sps.coo_matrix((len(time_vector),len(time_vector)))
-# dependency_tensor = np.zeros((len(flights_input.index),len(flights_input.index),len(time_vector),len(time_vector)), dtype=bool)
+# import numpy as np
+# print(len(flights_input.index))
+# print(len(time_vector))
+# test = np.zeros((len(flights_input.index),len(flights_input.index),len(time_vector),len(time_vector)), dtype=bool)
 for lead_idx in range(len(flights_input.index)):
     lead_class = flights_input['Weight class'] .iloc[lead_idx]
     lead_time_original = flights_input['Time'].iloc[lead_idx]
@@ -252,8 +258,11 @@ for lead_idx in range(len(flights_input.index)):
     dependency_tensor.append(dependency_follower_tensor)
     print(' -> LEAD IDX ' + str(lead_idx) + ' DEPENDENCY DONE')
 print('""" DEPENDENCY MATRIX DONE """')
+
+# import sys
+# import numpy as np
 # np.set_printoptions(threshold=sys.maxsize)
-# print(dependency_tensor[0][0])
+# print(np.shape(dependency_tensor))
 
 # write constraints
 for runway in runway_list:

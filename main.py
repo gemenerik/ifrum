@@ -1,7 +1,4 @@
-# todo; update mass flow
-# todo; update velocity approach
-# todo; update separation times
-# todo; model verification
+# todo; model verification ## moet nog uitgewerkt worden ##
 # todo; model sensitivity analysis
 # todo; optional; add departure-departure, arrival-departure, departure-arrival dependencies (easier than it sounds)
 # todo; optional; add more runways
@@ -9,19 +6,23 @@
 
 import pandas as pd
 import scipy.sparse as sps
+import numpy as np
 
 
 """ VARIABLES """
 # airport
-approach_left_distance = 10000                  # m
-approach_right_distance = 20000                 # m
+#approach_left_distance = 10000                  # m
+approach_left_distance = 100000
+approach_right_distance = 10000                 # m
 
 runway_list = ['l', 'r']
+Left = 0
+Right = 0
 
 # aircraft
 aircraft_list = ['H', 'N', 'M', 'L']
-mass_flow_list = [3, 2.5, 2, 1]                 # kg/s
-velocity_approach_list = [82, 78, 72, 63]       # m/s
+mass_flow_list = [1.7, 0.7, 0.5, 0.2]           # kg/s
+velocity_approach_list = [77, 72, 66, 46]       # m/s
 
 separation_H_H = 113                            # s
 separation_H_N = 131                            # s
@@ -45,7 +46,8 @@ separation_matrix = [[separation_H_H, separation_H_N, separation_H_M, separation
                      [separation_M_H, separation_M_N, separation_M_M, separation_M_L],
                      [separation_L_H, separation_L_N, separation_L_M, separation_L_L]]
 
-noise_left_list = [90, 85, 80, 75]              # dBA
+#noise_left_list = [1000, 1000, 1000, 1000]              # dBA
+noise_left_list = [100, 95, 90, 85]   
 noise_right_list = [100, 95, 90, 85]            # dBA
 
 # time vector
@@ -63,6 +65,9 @@ file = open('ifrum.lp', 'w')
 
 fuel_weight = 1
 noise_weight = 1
+
+sumtfbLeft = 0
+sumtfbRight = 0
 
 
 """ TOOLS """
@@ -142,11 +147,17 @@ for lead_idx in range(len(flights_input.index)):
             time_slot = time_original + j * time_resolution
             weight_class = flights_input['Weight class'].iloc[lead_idx]
             index = find_idx(weight_class)
-            tfb = 0
+            tfb = 0    
+            tfbLeft = 0
+            tfbRight = 0
             if runway == 'l':
                 tfb = total_fuel_burned_left_list[index]
+                tfbLeft = total_fuel_burned_left_list[index]
+                sumtfbLeft = sumtfbLeft + tfbLeft
             elif runway == 'r':
                 tfb = total_fuel_burned_right_list[index]
+                tfbRight = total_fuel_burned_right_list[index]
+                sumtfbRight = sumtfbRight + tfbRight
             file.write('+ ' + str(tfb) + ' x_' + str(lead_idx + 1) + '_' + runway + '_' + str(time_slot) + ' ')
     file.write(' - tfb_' + str(lead_idx + 1) + ' = 0\n')
 
@@ -166,6 +177,10 @@ for i in range(len(flights_input.index)):
     for runway in runway_list:
         file.write('+ ' + 'noise_' + runway + '_' + str(i+1)  + ' ')
 file.write('= 0\n')
+sumnoiseLeft = 0
+sumnoiseRight = 0
+runwayLeft = 0
+runwayRight = 0
 
 for runway in runway_list:
     for lead_idx in range(len(flights_input.index)):
@@ -175,14 +190,22 @@ for runway in runway_list:
             time_slot = time_original + j * time_resolution
             weight_class = flights_input['Weight class'].iloc[lead_idx]
             index = find_idx(weight_class)
-            noise = 0
+            noiseLeft = 0
+            noiseRight = 0
             if runway == 'l':
                 noise = noise_left_list[index]
+                #noiseLeft = noise_left_list[index]
+                #sumnoiseLeft = sumnoiseLeft + noiseLeft
             elif runway == 'r':
                 noise = noise_right_list[index]
+                #noiseRight = noise_right_list[index]
+                #sumnoiseRight = sumnoiseRight + noiseRight
             file.write('+ ' + str(noise) + ' x_' + str(lead_idx + 1) + '_' + runway + '_' + str(time_slot) + ' ')
         file.write(' - noise_' + runway + '_' + str(lead_idx+1) + ' = ' + str(0) + '\n')
-
+        #if runway == 'l':
+        #    runwayLeft = runwayLeft + 1
+        #else:
+        #    runwayRight = runwayRight + 1
 
 """ FLIGHT ASSIGNMENT """
 # write

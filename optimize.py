@@ -1,6 +1,8 @@
 import mip
 from mip import OptimizationStatus
+import sys
 
+sys.stdout = open("veri1.csv", "w")
 m = mip.Model()
 m.read('ifrum.lp')
 
@@ -17,3 +19,4 @@ if status == OptimizationStatus.OPTIMAL or status == OptimizationStatus.FEASIBLE
     for v in m.vars:
        if abs(v.x) > 1e-3: # only printing non-zeros
           print('{} : {}'.format(v.name, v.x))
+sys.stdout.close()

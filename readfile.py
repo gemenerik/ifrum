@@ -20,7 +20,6 @@ with open('model.sol', newline='\n') as csvfile:
 ## Variables & plotting
 fuel_level = sol["total_fuel_burned"]
 noise_level = sol["total_noise"]     
-left_runway = sol["noise_r_94"]
 
 foodict = {k: v for k, v in sol.items() if k.startswith('noise_l')}
 runway_left=len({x:y for x,y in foodict.items() if y!=0})

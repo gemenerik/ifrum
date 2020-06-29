@@ -1,9 +1,3 @@
-# todo; model verification ## moet nog uitgewerkt worden ##
-# todo; model sensitivity analysis
-# todo; optional; add departure-departure, arrival-departure, departure-arrival dependencies (easier than it sounds)
-# todo; optional; add more runways
-# todo; add lead idx for last idx, because it is not necessarily last
-
 import pandas as pd
 import scipy.sparse as sps
 import numpy as np
@@ -56,8 +50,8 @@ number_of_timeslots = 4500                      # -
 max_timeslot_shift = 30                         # -
 time_vector = range(0, time_resolution * number_of_timeslots, time_resolution)
 
-dependency_forward = 10
-dependency_backward = -5
+dependency_forward = 30
+dependency_backward = 1
 
 # input data
 flights_input = pd.read_csv('Flightschedule.csv')
